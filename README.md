@@ -69,42 +69,80 @@ src/
     test_shealth_bmi.py  - unittest 기반 단위 테스트
 doc/
   requirements_analysis.md  - 요구사항·QA 분석 문서
+  code_quality_report.md      - SOLID·코드 스멜 분석 보고서
 .cursorrules               - Cursor AI 프로젝트 규칙
 prompt/                    - 단계별 프롬프트 등록
 report/                    - 단계별 작업 보고서
 ```
 
-> 상세 요구사항·테스트 시나리오(45건)는 [`doc/requirements_analysis.md`](doc/requirements_analysis.md) 참고.
+> 상세 요구사항·테스트 시나리오(45건)는 [`doc/requirements_analysis.md`](doc/requirements_analysis.md), 코드 품질 분석은 [`doc/code_quality_report.md`](doc/code_quality_report.md) 참고.
 
 
 ## To-Do List
 
-> `doc/requirements_analysis.md` 기준 작업 목록. 완료 시 `[x]`로 표시.
+> [`doc/requirements_analysis.md`](doc/requirements_analysis.md) · [`doc/code_quality_report.md`](doc/code_quality_report.md) 기준 작업 목록. 완료 시 `[x]`로 표시.  
+> 리팩토링 우선순위: **P1** 구조 분해 → **P2** 상수·파서 → **P3** dataclass·그룹핑 → **P4** CLI·진입점 → **P5** Protocol·전략
 
 ### 0. 준비 · 문서
 
 - [x] Git `refactoring` 브랜치 및 원격 연동
 - [x] `.cursorrules` 작성 (pytest, 커버리지 90% 등)
 - [x] `doc/requirements_analysis.md` QA 분석 문서 작성
+- [x] `doc/code_quality_report.md` SOLID·코드 스멜 분석 문서 작성
 - [ ] `requirements-dev.txt` 추가 (`pytest`, `pytest-cov`)
 - [ ] README 테스트·커버리지 실행 명령 갱신
 
 ### 1. 코드 분석 (Activities 1)
 
-- [ ] `shealth.py` / `shealth_bmi.py` 구조·BMI 로직 이해
-- [ ] 코드 스멜 목록화 (Long Method, 매직 넘버, 데이터 클러핑 등)
-- [ ] **버그 확인:** BMI `25.0` 비만 분류 누락 (`> 25` → `>= 25`)
-- [ ] `prompt/01.코드분석.md`, `report/01.report.md` 작성
+- [x] `shealth.py` / `shealth_bmi.py` 구조·BMI 로직 이해
+- [x] 코드 스멜 목록화 — Long Method, Magic Number, Duplicated Code, Primitive Obsession, 데이터 클로킹 등 ([`code_quality_report.md` §3](doc/code_quality_report.md))
+- [x] **SRP/OCP 위반** 정리 — `calculate_bmi` 책임 혼재, BMI·나이대·CSV 스키마 하드코딩 ([§2](doc/code_quality_report.md))
+- [x] **버그 확인:** BMI `25.0` 비만 분류 누락 (`> 25` → `>= 25`)
+- [x] **잠재 버그:** 빈 행 처리 `break` → `continue` 검토 필요
+- [x] Python 특화 이슈 정리 — 타입 힌트 부분 적용, `Enum`/`dataclass`/`Protocol` 미활용, `encoding` 미지정 ([§4](doc/code_quality_report.md))
+- [x] `prompt/02.code_smell.md`, `report/02.code_smell.md` 작성
 
 ### 2. 1차 리팩토링 (Activities 2)
 
-- [ ] 네이밍 개선 (`age_class_start`, `BmiCategory` 등)
-- [ ] 하드코드·매직 넘버 제거 (18.5, 23, 25, 100~400 → 상수·`Enum`)
-- [ ] 함수 추출 (`load_csv`, `classify_bmi`, `impute_*`, `aggregate_*`)
-- [ ] 나이대 루프·BMI 분류 **중복 제거**
+#### P1 — `calculate_bmi` 분해 (SRP, Long Method)
+
+- [ ] `load_records` — CSV 읽기·상태 초기화 분리
+- [ ] `impute_weights` / `impute_heights` — 결측 보정 분리
+- [ ] `compute_bmis` — BMI 산출 분리
+- [ ] `aggregate_ratios` — 나이대별 비율 집계 분리
+
+#### P2 — 상수·파서·경계값 (OCP, Magic Number)
+
+- [ ] `BmiThresholds` / `AgeBandPolicy` 상수 모듈 (18.5, 23, 25, 20~70대)
+- [ ] BMI 분류 `> 25` → `>= 25` 수정 및 `classify_bmi()` 단일 함수화
+- [ ] `csv.DictReader` + 필드명 상수 (`id`, `age`, `weight`, `height`) — `row[1..3]` 제거
+- [ ] 빈 행 처리: `if not row: break` → `continue` (또는 strip 후 검증)
+- [ ] `BmiCategory` `IntEnum` — `100~400` 매직 넘버 제거
+
+#### P3 — 데이터 모델·중복 제거
+
+- [ ] `@dataclass HealthRecord` — 평행 리스트(`ages`, `weights` …) 대체
+- [ ] `AGE_BANDS` + `in_band(age, band)` — `range(20, 80, 10)` 3중 루프 통합
+- [ ] 공개 mutable 리스트 캡슐화 (property 또는 읽기 전용 복사본)
+
+#### P4 — 진입점·에러 처리 (`shealth_bmi.py`)
+
+- [ ] `main`에서 `SHealth.UNDERWEIGHT` 등 상수 사용 (리터럴 `100,200,300,400` 제거)
+- [ ] `format_age_band_report()` 추출 — f-string 출력 포맷 분리
+- [ ] `"shealth.dat"` → `argparse` / `pathlib.Path` 기본값
+- [ ] `FileNotFoundError`: `print` → `logging` (도메인 계층 `print` 금지)
+- [ ] `main() -> None` 타입 힌트·모듈 docstring
+
+#### P5 — 확장성 (선택, 1~4차 이후)
+
+- [ ] `typing.Protocol` — `SupportsBmiClassification`, `SupportsRecordReader` (`__subclasshook__` 검토)
+- [ ] 전략 패턴 — `BmiClassifier.classify(bmi)` 교체 가능 구조
+- [ ] `open(..., encoding="utf-8")` 명시
+
+#### 기타
+
+- [ ] 네이밍 개선 (`age_class_start` 등)
 - [ ] dead code·불필요 import 제거
-- [ ] `print` → `logging` 전환 (도메인 계층 `print` 금지)
-- [ ] 평행 리스트 → `@dataclass UserRecord` 구조 검토
 
 ### 3. 단위 테스트 · pytest (Activities 3)
 
@@ -140,10 +178,12 @@ report/                    - 단계별 작업 보고서
 - [ ] **정상 범위** 사용자 ID 목록 (`get_normal_weight_user_ids`, 18.5 초과 ~ 23 미만) — TC #32~35
 - [ ] 20세 미만·80세 이상 처리 정책 확정
 
-#### 4.4 설계 (SRP)
+#### 4.4 설계 (SRP · OCP)
 
-- [ ] 책임 분리: Reader / Imputer / Calculator / Classifier / Statistics
-- [ ] 모든 공개 함수·메서드 **type hint** 적용
+- [ ] 책임 분리: **Reader** / **Imputer** / **Calculator** / **Classifier** / **Statistics** ([`code_quality_report.md` §2](doc/code_quality_report.md))
+- [ ] `SHealth`는 조합(composition)만 담당 — 분류·입력원은 주입 가능하게
+- [ ] `ages`, `heights`, `weights`, `bmis` 필드 **type hint** (`list[int]`, `list[float]` 등)
+- [ ] 모든 공개 함수·메서드 **type hint** 적용 (`shealth_bmi.main` 포함)
 - [ ] `prompt/04.기능개선.md`, `report/04.report.md` 작성
 
 ### 5. 회고 · 발표 (Activities 5)
