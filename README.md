@@ -67,7 +67,99 @@ src/
     shealth_bmi.py       - main 함수 (프로그램 진입점)
   test/python/
     test_shealth_bmi.py  - unittest 기반 단위 테스트
+doc/
+  requirements_analysis.md  - 요구사항·QA 분석 문서
+.cursorrules               - Cursor AI 프로젝트 규칙
+prompt/                    - 단계별 프롬프트 등록
+report/                    - 단계별 작업 보고서
 ```
+
+> 상세 요구사항·테스트 시나리오(45건)는 [`doc/requirements_analysis.md`](doc/requirements_analysis.md) 참고.
+
+
+## To-Do List
+
+> `doc/requirements_analysis.md` 기준 작업 목록. 완료 시 `[x]`로 표시.
+
+### 0. 준비 · 문서
+
+- [x] Git `refactoring` 브랜치 및 원격 연동
+- [x] `.cursorrules` 작성 (pytest, 커버리지 90% 등)
+- [x] `doc/requirements_analysis.md` QA 분석 문서 작성
+- [ ] `requirements-dev.txt` 추가 (`pytest`, `pytest-cov`)
+- [ ] README 테스트·커버리지 실행 명령 갱신
+
+### 1. 코드 분석 (Activities 1)
+
+- [ ] `shealth.py` / `shealth_bmi.py` 구조·BMI 로직 이해
+- [ ] 코드 스멜 목록화 (Long Method, 매직 넘버, 데이터 클러핑 등)
+- [ ] **버그 확인:** BMI `25.0` 비만 분류 누락 (`> 25` → `>= 25`)
+- [ ] `prompt/01.코드분석.md`, `report/01.report.md` 작성
+
+### 2. 1차 리팩토링 (Activities 2)
+
+- [ ] 네이밍 개선 (`age_class_start`, `BmiCategory` 등)
+- [ ] 하드코드·매직 넘버 제거 (18.5, 23, 25, 100~400 → 상수·`Enum`)
+- [ ] 함수 추출 (`load_csv`, `classify_bmi`, `impute_*`, `aggregate_*`)
+- [ ] 나이대 루프·BMI 분류 **중복 제거**
+- [ ] dead code·불필요 import 제거
+- [ ] `print` → `logging` 전환 (도메인 계층 `print` 금지)
+- [ ] 평행 리스트 → `@dataclass UserRecord` 구조 검토
+
+### 3. 단위 테스트 · pytest (Activities 3)
+
+- [ ] `unittest` → **pytest** 스타일로 이전 (`conftest.py`, `tmp_path` fixture)
+- [ ] BMI 계산 TC (표준·cm→m 변환·경계값 18.5/23/25) — TC #1~9
+- [ ] `weight=0` 나이대 평균 보정 TC — TC #10~14
+- [ ] 저체중/정상/과체중/비만 분류 TC — TC #15~22
+- [ ] 예외 TC (파일 없음, 빈 파일, 잘못된 행) — TC #36~42
+- [ ] **라인 커버리지 90% 이상** (`--cov-fail-under=90`)
+- [ ] `prompt/03.단위테스트.md`, `report/03.report.md` 작성
+
+### 4. 기능 개선 (Activities 4)
+
+#### 4.1 데이터 입력 · 전처리
+
+- [x] CSV 로드 (`id, age, weight, height`)
+- [x] `weight=0` → 동일 나이대 평균 체중 보정
+- [ ] `height=0` → 동일 나이대 평균 키 보정 — TC #23~26
+- [ ] 보정 불가 시 정책 정의 (스킵·fallback·로그 WARNING)
+- [ ] 빈 행·컬럼 부족·비숫자 값 방어적 처리
+
+#### 4.2 BMI 계산 · 분류
+
+- [x] BMI = kg / m² (키 cm → m 변환)
+- [ ] `classify_bmi()` 단일 함수로 분류 통합
+- [ ] 경계값 정합: ≤18.5 / 18.5~23 / 23~25 / ≥25
+
+#### 4.3 통계 · 조회 API
+
+- [x] 나이대별 BMI 범주 비율 (`get_bmi_ratio`)
+- [ ] 나이대 4종 비율 합 ≈ 100% 검증 — TC #27~28
+- [ ] **전체 사용자** BMI 범주 비율 (`get_overall_bmi_distribution`) — TC #29~30
+- [ ] **정상 범위** 사용자 ID 목록 (`get_normal_weight_user_ids`, 18.5 초과 ~ 23 미만) — TC #32~35
+- [ ] 20세 미만·80세 이상 처리 정책 확정
+
+#### 4.4 설계 (SRP)
+
+- [ ] 책임 분리: Reader / Imputer / Calculator / Classifier / Statistics
+- [ ] 모든 공개 함수·메서드 **type hint** 적용
+- [ ] `prompt/04.기능개선.md`, `report/04.report.md` 작성
+
+### 5. 회고 · 발표 (Activities 5)
+
+- [ ] 실습 목표·달성도 정리
+- [ ] 코드 품질 Before & After
+- [ ] AI 활용 회고 (도움·한계)
+- [ ] TC 추가가 품질에 미친 영향·작성 팁
+- [ ] `prompt/05.회고.md`, `report/05.report.md` 작성
+
+### 6. 품질 게이트 (`.cursorrules` 연동)
+
+- [ ] 신규·변경 기능마다 pytest TC 추가
+- [ ] `@pytest.mark.skip` 최소화
+- [ ] PEP 8 준수
+- [ ] 리팩토링 후 회귀 TC (`shealth.dat` 스냅샷) — TC #44
 
 
 # 생성형AI를 활용한 Activities (6 시간)
