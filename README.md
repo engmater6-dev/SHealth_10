@@ -37,8 +37,8 @@ venv\Scripts\activate
 # 가상환경 활성화 (macOS/Linux)
 source venv/bin/activate
 
-# 필요한 패키지 설치 (테스트용)
-pip install pytest
+# 개발·테스트 의존성 설치
+pip install -r requirements-dev.txt
 ```
 
 ### 실행
@@ -49,7 +49,12 @@ python shealth_bmi.py
 
 ### 테스트 실행
 ```bash
-python -m pytest src/test/python/test_shealth_bmi.py -v
+python -m pytest src/test/python -v
+```
+
+### 커버리지 확인 (라인 커버리지 90% 이상)
+```bash
+python -m pytest src/test/python --cov=src/main/python --cov-report=term-missing --cov-fail-under=90
 ```
 
 ### 가상환경 비활성화
@@ -60,6 +65,7 @@ deactivate
 
 ## 프로젝트 구조
 ```
+requirements-dev.txt   # pytest, pytest-cov (개발·테스트용)
 shealth.dat
 src/
   main/python/
@@ -89,8 +95,8 @@ report/                    - 단계별 작업 보고서
 - [x] `.cursorrules` 작성 (pytest, 커버리지 90% 등)
 - [x] `doc/requirements_analysis.md` QA 분석 문서 작성
 - [x] `doc/code_quality_report.md` SOLID·코드 스멜 분석 문서 작성
-- [ ] `requirements-dev.txt` 추가 (`pytest`, `pytest-cov`)
-- [ ] README 테스트·커버리지 실행 명령 갱신
+- [x] `requirements-dev.txt` 추가 (`pytest`, `pytest-cov`)
+- [x] README 테스트·커버리지 실행 명령 갱신
 
 ### 1. 코드 분석 (Activities 1)
 
