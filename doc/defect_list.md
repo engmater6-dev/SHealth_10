@@ -4,7 +4,7 @@
 > **작성 기준일:** 2026-05-20  
 > **최종 재분석:** 2026-05-20 (Activities 4 완료 후)  
 > **참조:** [`requirements_analysis.md`](requirements_analysis.md) · [`test_plan.md`](test_plan.md) · [`feature_policy.md`](feature_policy.md) · [`report/05.test_case.md`](../report/05.test_case.md) · [`report/06.feature.md`](../report/06.feature.md)  
-> **현재 테스트:** **62건** unit Green (+2 golden) · 커버리지 **99%**
+> **현재 테스트:** **64건** unit Green (+2 golden) · 커버리지 **99%**
 
 ---
 
@@ -12,15 +12,15 @@
 
 | 상태 | 건수 | 설명 |
 |------|------|------|
-| **Fixed** | 14 | 리팩토링·Activities 4·TC로 수정·검증 완료 |
-| **Open** | 1 | 후속 스프린트 또는 요구 확정 시 |
+| **Fixed** | 15 | 리팩토링·Activities 4·TC로 수정·검증 완료 |
+| **Open** | 0 | — |
 | **Known Limitation** | 2 | 정책 확정·문서화 완료, 의도적 동작 고정 |
 
 | Severity | Fixed | Open | Known Limitation |
 |----------|-------|------|------------------|
 | Critical | 1 | 0 | 0 |
 | High | 6 | 0 | 0 |
-| Medium | 5 | 1 | 2 |
+| Medium | 6 | 0 | 2 |
 | Low | 1 | 0 | 0 |
 
 ### Activities 4 재분석 결과 (2026-05-20)
@@ -31,7 +31,7 @@
 | **Open → Fixed** | DEF-011, DEF-012 | `_parse_health_row()` + 행 스킵 WARNING |
 | **Open → Fixed** | DEF-013, DEF-014 | `get_overall_bmi_distribution()`, `get_normal_weight_user_ids()` |
 | **Open → Fixed (문서화)** | DEF-016 | [`feature_policy.md`](feature_policy.md) §2 + `test_age_out_of_band.py` |
-| **Open 유지** | DEF-015 | 음수 weight/height 검증 미구현 (TC #41) |
+| **Open → Fixed** | DEF-015 | 음수 weight/height → WARNING + skip (TC #41) |
 | **Known Limitation 유지** | DEF-010 | 전원 weight=0 보정 불가 (height 전원 0은 TC #25로 동일 정책) |
 
 ---
@@ -249,12 +249,12 @@
 | **ID** | DEF-015 |
 | **Severity** | Medium |
 | **ItemType** | Data Validation |
-| **Status** | **Open** (TC #41 미구현) |
+| **Status** | **Fixed** (TC #41) |
 | **Steps** | 1. `weight=-1` 또는 `height=-1` 행 포함 CSV 로드. |
 | **Expected** | 스킵 또는 ERROR — 요구 정책에 따름 |
 | **Actual** | 그대로 로드·BMI 계산(음수 BMI 가능) |
 | **Root Cause** | `_parse_health_row()`에 부호 검증 없음 |
-| **Fix Summary** (권장) | `weight < 0` / `height < 0` → WARNING + skip. `test_load_records_invalid.py` 확장 |
+| **Fix Summary** | `weight < 0` / `height < 0` → `ValueError` in `_parse_health_row()`, WARNING + skip in `_load_records`. `test_load_records_invalid.py::test_skip_negative_weight_or_height_with_warning` |
 
 ---
 
@@ -306,7 +306,7 @@
 | DEF-012 | #39 | `test_load_records_invalid.py` | Fixed |
 | DEF-013 | #29~30 | `test_overall_distribution.py` | Fixed |
 | DEF-014 | #32~35 | `test_normal_weight_ids.py` | Fixed |
-| DEF-015 | #41 | — | **Open** |
+| DEF-015 | #41 | `test_load_records_invalid.py` | Fixed |
 | DEF-016 | #40 | `test_age_out_of_band.py` | Fixed (Documented) |
 | DEF-017 | #43 등 | 전체 suite (62 unit) | Fixed |
 
@@ -316,7 +316,6 @@
 
 | 우선순위 | ID | 권장 조치 |
 |----------|-----|-----------|
-| P2 | DEF-015 | 음수 weight/height 스킵 정책 확정 후 TC #41 구현 |
 | — | DEF-010 | 제품 요구 변경 시에만 fallback/제외 정책 재검토 |
 
 ---
@@ -337,6 +336,7 @@
 |------|------|
 | 2026-05-20 | 초안 작성 — Fixed 7건, Open 9건, Known Limitation 1건 |
 | 2026-05-20 | **Activities 4 재분석** — Fixed 14건, Open 1건(DEF-015), Known Limitation 2건(DEF-010·height 대칭). DEF-008~014, DEF-016·009 해소 반영 |
+| 2026-05-20 | **DEF-015 해소** — 음수 weight/height 검증(TC #41), Open 0건, Fixed 15건 |
 
 ---
 

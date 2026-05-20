@@ -97,11 +97,17 @@ def _parse_health_row(row: dict[str, str | None]) -> HealthRecord:
     for field in (FIELD_ID, FIELD_AGE, FIELD_WEIGHT, FIELD_HEIGHT):
         if field not in row or row[field] is None or not str(row[field]).strip():
             raise ValueError(f"missing or empty field: {field}")
+    weight = float(row[FIELD_WEIGHT])
+    height = float(row[FIELD_HEIGHT])
+    if weight < 0:
+        raise ValueError(f"negative weight: {weight}")
+    if height < 0:
+        raise ValueError(f"negative height: {height}")
     return HealthRecord(
         id=int(float(row[FIELD_ID])),
         age=int(row[FIELD_AGE]),
-        weight=float(row[FIELD_WEIGHT]),
-        height=float(row[FIELD_HEIGHT]),
+        weight=weight,
+        height=height,
     )
 
 

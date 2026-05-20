@@ -54,6 +54,7 @@
 | 빈 행 | `continue` |
 | 필수 키 누락·빈 값 | `logger.warning` + `continue` |
 | 비숫자 변환 실패 | `logger.warning` + `continue` |
+| `weight < 0` 또는 `height < 0` | `logger.warning` + `continue` |
 | 파일 없음 | `logger.error` + count 0 |
 
 스킵 행은 `count`에 **포함하지 않음**.

@@ -210,7 +210,7 @@ def test_impute_weight_param(write_health_csv, rows, ...): ...
 | E5 | 컬럼 부족 | `1,20,70` (3필드) | 스킵 + WARNING | WARNING | #39 | P3 | A4 |
 | E6 | 나이 19세 | age=19 | 나이대 통계 제외 | — | #40 | △ | 06 |
 | E7 | 80세 이상 | age=80 | 동일 정책 | — | — | △ | 06 |
-| E8 | 음수 체중 | weight=-1 | 스킵 또는 ERROR | WARNING/ERROR | #41 | P3 | A4 |
+| E8 | 음수 체중/키 | weight=-1 또는 height=-1 | 스킵 + WARNING | WARNING | #41 | ✅ | A4 |
 | E9 | 보정 불가 weight | 40대 전원 w=0 | 0 유지 → BMI 오류 가능 | — | #13 | ⬜ | 04 |
 | E10 | height=0 미보정 | h=0 | ZeroDivision 위험 | ERROR | #25 | P3 | A4 |
 | E11 | print 금지 | 파일 없음 | stdout에 도메인 print 없음 | — | #42 | ✅ | 05 |
@@ -326,7 +326,7 @@ python -m pytest src/test/python --cov=src/main/python --cov-report=html
 | 37 | 헤더만 | P0 | load_records 확장 | ✅ |
 | 38~39 | 잘못된 행/컬럼 | P3 | Activities 4 | 백로그 |
 | 40 | 나이 19세 | P1 | age_band_policy | ✅ |
-| 41 | 음수 입력 | P3 | Activities 4 | 백로그 |
+| 41 | 음수 입력 | P3 | `test_load_records_invalid.py` | ✅ |
 | 42 | 로깅·빈 행 | P0 | load + cli | ✅ |
 | 43 | return N | P1 | load_records | ✅ |
 | 44 | Golden 스냅샷 | P2 | `test_golden_master.py` · `src/test/golden/` | ✅ |
