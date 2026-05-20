@@ -92,6 +92,19 @@ def _is_blank_row(row: dict[str, str | None]) -> bool:
     return not any(str(value).strip() for value in row.values() if value is not None)
 
 
+def _parse_health_row(row: dict[str, str | None]) -> HealthRecord:
+    """DictReader 행을 HealthRecord로 변환한다."""
+    for field in (FIELD_ID, FIELD_AGE, FIELD_WEIGHT, FIELD_HEIGHT):
+        if field not in row or row[field] is None or not str(row[field]).strip():
+            raise ValueError(f"missing or empty field: {field}")
+    return HealthRecord(
+        id=int(float(row[FIELD_ID])),
+        age=int(row[FIELD_AGE]),
+        weight=float(row[FIELD_WEIGHT]),
+        height=float(row[FIELD_HEIGHT]),
+    )
+
+
 class SHealth:
     """S-Health BMI 계산 클래스"""
 
@@ -140,6 +153,7 @@ class SHealth:
         if self._load_records(filename) == 0 and not self._records:
             return 0
         self._impute_weights()
+        self._impute_heights()
         self._compute_bmis()
         self._aggregate_ratios()
         return self.count
@@ -163,17 +177,19 @@ class SHealth:
         try:
             with open(filename, newline="", encoding="utf-8") as file_handle:
                 reader = csv.DictReader(file_handle)
-                for row in reader:
+                for line_number, row in enumerate(reader, start=2):
                     if _is_blank_row(row):
                         continue
-                    self._records.append(
-                        HealthRecord(
-                            id=int(float(row[FIELD_ID])),
-                            age=int(row[FIELD_AGE]),
-                            weight=float(row[FIELD_WEIGHT]),
-                            height=float(row[FIELD_HEIGHT]),
+                    try:
+                        record = _parse_health_row(row)
+                    except (KeyError, TypeError, ValueError) as exc:
+                        logger.warning(
+                            "Skipping invalid CSV row at line %s: %s",
+                            line_number,
+                            exc,
                         )
-                    )
+                        continue
+                    self._records.append(record)
                     self.count += 1
         except FileNotFoundError:
             logger.error("Failed to open file: %s", filename)
@@ -195,9 +211,26 @@ class SHealth:
                 if record.weight == 0.0:
                     record.weight = avg_weight
 
+    def _impute_heights(self) -> None:
+        """height=0인 레코드에 나이대별 평균 키를 적용한다."""
+        for age_band_start in AGE_BANDS:
+            band_records = self._records_in_band(age_band_start)
+            valid_heights = [
+                record.height for record in band_records if record.height != 0.0
+            ]
+            if not valid_heights:
+                continue
+            avg_height = sum(valid_heights) / len(valid_heights)
+            for record in band_records:
+                if record.height == 0.0:
+                    record.height = avg_height
+
     def _compute_bmis(self) -> None:
         """보정된 체중·키로 각 레코드의 BMI를 계산한다."""
         for record in self._records:
+            if record.height == 0.0:
+                record.bmi = 0.0
+                continue
             height_m = record.height / 100.0
             record.bmi = record.weight / (height_m ** 2)
 
@@ -221,3 +254,32 @@ class SHealth:
     def get_bmi_ratio(self, age_class: int, bmi_type: int) -> float:
         """나이대와 BMI 유형에 따른 비율을 반환한다."""
         return self._bmi_ratios.get((age_class, bmi_type), 0.0)
+
+    def _records_with_valid_bmi(self) -> list[HealthRecord]:
+        """보정 후 height>0 인 레코드 (BMI 산출 가능)."""
+        return [record for record in self._records if record.height > 0.0]
+
+    def get_overall_bmi_distribution(self) -> dict[BmiCategory, float]:
+        """전체 유효 레코드(height>0) 기준 BMI 범주별 비율(%)을 반환한다."""
+        valid_records = self._records_with_valid_bmi()
+        population = len(valid_records)
+        counts = {category: 0 for category in BmiCategory}
+        if population == 0:
+            return {category: 0.0 for category in BmiCategory}
+
+        for record in valid_records:
+            category = self._classifier.classify(record.bmi)
+            counts[category] += 1
+
+        return {
+            category: counts[category] * 100 / population for category in BmiCategory
+        }
+
+    def get_normal_weight_user_ids(self) -> list[int]:
+        """BMI가 정상 범위(18.5 초과 23 미만)인 사용자 id를 입력 순서로 반환한다."""
+        thresholds = BMI_THRESHOLDS
+        result: list[int] = []
+        for record in self._records_with_valid_bmi():
+            if thresholds.underweight_max < record.bmi < thresholds.normal_max:
+                result.append(record.id)
+        return result

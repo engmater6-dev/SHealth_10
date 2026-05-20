@@ -35,18 +35,23 @@
 
 | 항목 | 결과 |
 |------|------|
-| pytest | **49건** (기본 실행 47 + Golden Master 2, unittest 3건 포함) |
+| pytest | **64건** (unit 62 + Golden Master 2, unittest 3건 포함) |
 | 커버리지 | **99%** (`shealth.py` 100%, `models.py` 100%, `shealth_bmi.py` 96%) — `--cov-fail-under=90` 충족 |
 | 주요 TC | BMI 경계, weight=0 보정, 빈 행·ERROR 로깅, FakeClassifier |
 | Golden Master | TC #44 — `shealth.dat` CLI stdout 6줄 ↔ [`src/test/golden/shealth_dat_stdout.txt`](src/test/golden/shealth_dat_stdout.txt) |
 
-### 아직 미구현 (Activities 4 예정)
+### Activities 4 기능 개선 (완료)
 
-- `height=0` 나이대 평균 키 보정 (`impute_heights`)
-- 전체 사용자 BMI 비율 API (`get_overall_bmi_distribution`)
-- 정상 범위 사용자 ID 목록 (`get_normal_weight_user_ids`)
-- CSV 잘못된 행 방어적 스킵 + WARNING 로그
-- `SupportsRecordReader` Protocol (선택)
+- `height=0` 나이대 평균 키 보정 (`_impute_heights`) — [`doc/feature_policy.md`](doc/feature_policy.md)
+- 전체 사용자 BMI 비율 (`get_overall_bmi_distribution`)
+- 정상 범위 사용자 ID (`get_normal_weight_user_ids`, 18.5 초과 ~ 23 미만)
+- CSV 잘못된 행 방어적 스킵 + `logging.warning`
+- 상세: [`doc/feature_plan.md`](doc/feature_plan.md) · [`report/06.feature.md`](report/06.feature.md)
+
+### 선택 미구현
+
+- `SupportsRecordReader` Protocol (YAGNI)
+- Reader / Imputer / Statistics 별도 모듈 분리 (YAGNI, [`report/06.feature.md`](report/06.feature.md) §7)
 
 
 ## data sample
@@ -167,13 +172,21 @@ src/
     test_bmi_classifier.py  - Protocol·FakeClassifier TC
     test_cli_logging.py     - logging·리포트 포맷 TC
     test_golden_master.py   - Golden Master 회귀 (TC #44)
+    test_impute_height.py   - height=0 보정 (TC #23~26)
+    test_overall_distribution.py - 전체 BMI 비율 (TC #29~30)
+    test_normal_weight_ids.py    - 정상 ID 목록 (TC #32~35)
+    test_load_records_invalid.py - 잘못된 행 스킵 (TC #38~39)
+    test_age_out_of_band.py      - 나이 구간 외 정책 (TC #40)
     texttest_fixture.py     - stdout 캡처·approve 헬퍼
   test/golden/
     shealth_dat_stdout.txt  - CLI golden 기준 출력
 task_refactoring/           - Phase 01~08 리팩토링 프롬프트
 task_golden_master/         - Golden Master Phase 01~05 프롬프트
 task_testplan/              - Activities 3 단위 테스트 Phase 01~09 프롬프트
+task_feature/               - Activities 4 기능 개선 Phase 01~09 프롬프트
 doc/
+  feature_plan.md           - Activities 4 진행 계획
+  feature_policy.md         - Activities 4 보정·API·예외 정책
   test_plan.md              - Activities 3 테스트 계획서
   golden_master_plan.md     - Golden Master 회귀 설계 (TC #44)
   defect_list.md            - QA 결함 목록
@@ -213,14 +226,14 @@ report/                     - Activities 단계별 보고서
 
 ### 2. 1차 리팩토링 (Activities 2)
 
-> **진행 상태 (Phase 01~08):** P1~P4·기타 **완료** · P5 선택 1건 제외 · `impute_heights`는 Activities 4로 이관
+> **진행 상태 (Phase 01~08):** P1~P4·기타 **완료** · P5 선택 1건 제외 · `_impute_heights`는 Activities 4에서 **완료**
 
 #### P1 — `calculate_bmi` 분해 (SRP, Long Method)
 
 - [x] `_load_records` — CSV 읽기·레코드 적재 (`_load_records`)
 - [x] `_reset_state()` — `calculate_bmi` 호출 전 상태 초기화 분리
 - [x] `_impute_weights` — 체중(`weight=0`) 결측 보정 분리
-- [ ] `_impute_heights` — 키(`height=0`) 결측 보정 (**Activities 4**, 2차 범위)
+- [x] `_impute_heights` — 키(`height=0`) 결측 보정 (Activities 4)
 - [x] `_compute_bmis` — BMI 산출 분리
 - [x] `_aggregate_ratios` — 나이대별 비율 집계 분리
 
@@ -278,8 +291,8 @@ report/                     - Activities 단계별 보고서
 - [x] 나이대 4종 합 100%·빈 나이대 TC — TC #27~28 (`test_bmi_ratio_sum.py`)
 - [x] weight 보정 parametrize·보정 불가 — TC #11~13 (`test_impute_weight.py`)
 - [x] 헤더만·건수 반환·`main()` CLI TC — TC #37, #43, `test_cli_main.py`
-- [ ] height 보정·전체 비율·정상 ID TC — Activities 4 연동
-- [ ] 잘못된 행 스킵 TC — TC #38~39
+- [x] height 보정·전체 비율·정상 ID TC — TC #23~35 (`test_impute_height.py` 등)
+- [x] 잘못된 행 스킵 TC — TC #38~39 (`test_load_records_invalid.py`)
 - [x] `prompt/05.test_case.md`, `report/05.test_case.md` 작성
 - [x] Golden Master 회귀 TC #44 — `test_golden_master.py`, `texttest_fixture.py`
 - [x] `pytest.ini` Golden 마커 (기본 실행 시 golden 제외)
@@ -292,9 +305,9 @@ report/                     - Activities 단계별 보고서
 
 - [x] CSV 로드 (`id, age, weight, height`)
 - [x] `weight=0` → 동일 나이대 평균 체중 보정
-- [ ] `height=0` → 동일 나이대 평균 키 보정 — TC #23~26
-- [ ] 보정 불가 시 정책 정의 (스킵·fallback·로그 WARNING)
-- [ ] 빈 행·컬럼 부족·비숫자 값 방어적 처리
+- [x] `height=0` → 동일 나이대 평균 키 보정 — TC #23~26
+- [x] 보정 불가 시 정책 정의 — [`doc/feature_policy.md`](doc/feature_policy.md)
+- [x] 빈 행·컬럼 부족·비숫자 값 방어적 처리 — TC #38~39
 
 #### 4.2 BMI 계산 · 분류
 
@@ -305,18 +318,18 @@ report/                     - Activities 단계별 보고서
 #### 4.3 통계 · 조회 API
 
 - [x] 나이대별 BMI 범주 비율 (`get_bmi_ratio`)
-- [ ] 나이대 4종 비율 합 ≈ 100% 검증 — TC #27~28
-- [ ] **전체 사용자** BMI 범주 비율 (`get_overall_bmi_distribution`) — TC #29~30
-- [ ] **정상 범위** 사용자 ID 목록 (`get_normal_weight_user_ids`, 18.5 초과 ~ 23 미만) — TC #32~35
-- [ ] 20세 미만·80세 이상 처리 정책 확정
+- [x] 나이대 4종 비율 합 ≈ 100% 검증 — TC #27~28
+- [x] **전체 사용자** BMI 범주 비율 (`get_overall_bmi_distribution`) — TC #29~30
+- [x] **정상 범위** 사용자 ID 목록 (`get_normal_weight_user_ids`, 18.5 초과 ~ 23 미만) — TC #32~35
+- [x] 20세 미만·80세 이상 처리 정책 — [`doc/feature_policy.md`](doc/feature_policy.md) · TC #40
 
 #### 4.4 설계 (SRP · OCP)
 
 - [x] 1차 책임 분리 — load / impute / compute / aggregate private 메서드
 - [x] 분류 전략 주입 — `SHealth(classifier=SupportsBmiClassification)`
 - [x] `HealthRecord` + property + **type hint** (`shealth.py`, `shealth_bmi.py`)
-- [ ] Reader / Imputer / Statistics **별도 클래스** 분리 (추가 리팩토링)
-- [ ] `prompt/06.feature.md`, `report/06.feature.md` 작성
+- [ ] Reader / Imputer / Statistics **별도 클래스** 분리 — YAGNI 보류 ([`report/06.feature.md`](report/06.feature.md) §7)
+- [x] `prompt/06.feature.md`, `report/06.feature.md` 작성
 
 ### 5. 회고 · 발표 (Activities 5)
 
@@ -350,12 +363,12 @@ report/                     - Activities 단계별 보고서
 - 정상/저체중/과체중/비만 분류 TC ✅
 - 예외상황 TC ✅ (파일 없음, 빈 행 — 일부)
 - Golden Master 회귀 TC #44 ✅ ([`report/05.golden_master.md`](report/05.golden_master.md) · CI 연동)
-4. 기능 개선 (2시간)
-- SRP에 따른 책임 분리등 리팩토링 
-- 특정 연령대의 BMI 분포 비율 계산 기능 추가
-- Height가 0인 경우에 대한 평균치 보정 로직 추가 
-- BMI 정상 범위 사용자 목록 조회 기능 추가
-- 전체 사용자 대비 각 BMI 범주 비율 계산 기능 추가
+4. 기능 개선 (2시간) — **완료** ([`report/06.feature.md`](report/06.feature.md) · [`doc/feature_plan.md`](doc/feature_plan.md))
+- SRP 1차 유지 (`_impute_heights` 등 private 메서드) ✅
+- 나이대별 BMI 분포 (`get_bmi_ratio`) — 기존 ✅
+- Height 0 → 나이대 평균 키 보정 ✅
+- BMI 정상 범위 사용자 ID 목록 ✅
+- 전체 사용자 BMI 범주 비율 ✅
 5. 회고 및 발표 (1시간) 
 - 실습 목표와 달성도 
 - 코드 품질 Before & After
