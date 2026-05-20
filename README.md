@@ -35,9 +35,10 @@
 
 | 항목 | 결과 |
 |------|------|
-| pytest | **45건** (unittest 3건 + pytest 42건) |
+| pytest | **49건** (기본 실행 47 + Golden Master 2, unittest 3건 포함) |
 | 커버리지 | **99%** (`shealth.py` 100%, `models.py` 100%, `shealth_bmi.py` 96%) — `--cov-fail-under=90` 충족 |
-| 주요 TC | BMI 경계(18.5/23/25), weight=0 보정, 빈 행 스킵, ERROR 로깅, FakeClassifier 주입 |
+| 주요 TC | BMI 경계, weight=0 보정, 빈 행·ERROR 로깅, FakeClassifier |
+| Golden Master | TC #44 — `shealth.dat` CLI stdout 6줄 ↔ [`src/test/golden/shealth_dat_stdout.txt`](src/test/golden/shealth_dat_stdout.txt) |
 
 ### 아직 미구현 (Activities 4 예정)
 
@@ -108,15 +109,34 @@ python shealth_bmi.py ../../shealth.dat
 
 ### 테스트 실행
 
-프로젝트 루트에서:
+프로젝트 루트에서 (`pytest.ini` — 기본적으로 Golden Master 제외):
 
 ```bash
-py -3 -m pytest src/test/python -v
+py -3 -m pytest -v
+```
+
+Golden Master 회귀(TC #44, `shealth.dat` stdout 6줄):
+
+```bash
+py -3 -m pytest -m golden_master -v
+```
+
+Golden 기준 파일 갱신(의도적 통계 변경 시):
+
+```bash
+set UPDATE_GOLDEN=1
+py -3 -m pytest -m golden_master -v
+```
+
+전체(unit + golden):
+
+```bash
+py -3 -m pytest -m "" -v
 ```
 
 ### 커버리지 확인 (라인 커버리지 90% 이상)
 ```bash
-python -m pytest src/test/python --cov=src/main/python --cov-report=term-missing --cov-fail-under=90
+python -m pytest -m "not golden_master" --cov=src/main/python --cov-report=term-missing --cov-fail-under=90
 ```
 
 ### 가상환경 비활성화
@@ -146,10 +166,17 @@ src/
     test_age_band_policy.py - in_age_band / AGE_BANDS TC
     test_bmi_classifier.py  - Protocol·FakeClassifier TC
     test_cli_logging.py     - logging·리포트 포맷 TC
+    test_golden_master.py   - Golden Master 회귀 (TC #44)
+    texttest_fixture.py     - stdout 캡처·approve 헬퍼
+  test/golden/
+    shealth_dat_stdout.txt  - CLI golden 기준 출력
 task_refactoring/           - Phase 01~08 리팩토링 프롬프트
+task_golden_master/         - Golden Master Phase 01~05 프롬프트
 task_testplan/              - Activities 3 단위 테스트 Phase 01~09 프롬프트
 doc/
   test_plan.md              - Activities 3 테스트 계획서
+  golden_master_plan.md     - Golden Master 회귀 설계 (TC #44)
+  defect_list.md            - QA 결함 목록
   requirements_analysis.md  - 요구사항·QA 분석 (TC 45건)
   code_quality_report.md    - SOLID·코드 스멜 분석
 .cursorrules                - Cursor AI 프로젝트 규칙
@@ -254,6 +281,10 @@ report/                     - Activities 단계별 보고서
 - [ ] height 보정·전체 비율·정상 ID TC — Activities 4 연동
 - [ ] 잘못된 행 스킵 TC — TC #38~39
 - [x] `prompt/05.test_case.md`, `report/05.test_case.md` 작성
+- [x] Golden Master 회귀 TC #44 — `test_golden_master.py`, `texttest_fixture.py`
+- [x] `pytest.ini` Golden 마커 (기본 실행 시 golden 제외)
+- [x] GitHub Actions CI — unit+cov / golden-master
+- [x] `prompt/05.golden_master.md`, `report/05.golden_master.md` 작성
 
 ### 4. 기능 개선 (Activities 4)
 
@@ -301,7 +332,7 @@ report/                     - Activities 단계별 보고서
 - [x] `@pytest.mark.skip` 미사용
 - [x] PEP 8·type hint 정리 (Phase 08)
 - [x] `shealth.dat` 스모크·비율 0~100% 회귀 (`test_shealth_bmi`, `test_bmi_ratio_range`)
-- [ ] Golden 스냅샷 자동 비교 — TC #44 전용
+- [x] Golden 스냅샷 자동 비교 — TC #44 ([`report/05.golden_master.md`](report/05.golden_master.md))
 
 
 # 생성형AI를 활용한 Activities (6 시간)
@@ -313,11 +344,12 @@ report/                     - Activities 단계별 보고서
 - 하드코드 및 전역변수 제거 ✅ (`BmiCategory`, `AGE_BANDS`, 필드명 상수)
 - 함수 추출 ✅ (`calculate_bmi` 분해, `format_age_band_report`)
 - 반복/중복 제거 ✅ (`in_age_band`, `_records_in_band`, `HealthRecord`)
-3. UnitTest 작성 (1시간) — **완료** (pytest 45건, 커버리지 99%, [`doc/test_plan.md`](doc/test_plan.md) · [`report/05.test_case.md`](report/05.test_case.md))
+3. UnitTest 작성 (1시간) — **완료** (pytest 49건, 커버리지 99%, [`doc/test_plan.md`](doc/test_plan.md) · [`report/05.test_case.md`](report/05.test_case.md))
 - BMI 계산·경계 로직 TC ✅
 - Age 평균치 보정 로직 TC ✅
 - 정상/저체중/과체중/비만 분류 TC ✅
 - 예외상황 TC ✅ (파일 없음, 빈 행 — 일부)
+- Golden Master 회귀 TC #44 ✅ ([`report/05.golden_master.md`](report/05.golden_master.md) · CI 연동)
 4. 기능 개선 (2시간)
 - SRP에 따른 책임 분리등 리팩토링 
 - 특정 연령대의 BMI 분포 비율 계산 기능 추가

@@ -329,7 +329,7 @@ python -m pytest src/test/python --cov=src/main/python --cov-report=html
 | 41 | 음수 입력 | P3 | Activities 4 | 백로그 |
 | 42 | 로깅·빈 행 | P0 | load + cli | ✅ |
 | 43 | return N | P1 | load_records | ✅ |
-| 44 | Golden 스냅샷 | P2 | 선택 | ⬜ |
+| 44 | Golden 스냅샷 | P2 | `test_golden_master.py` · `src/test/golden/` | ✅ |
 | 45 | 커버리지 ≥90% | 게이트 | Phase 08 | ✅ (99%) |
 
 **범례:** ✅ 구현·Green · △ 부분 · ⬜ 미구현 · 백로그 = Activities 4
