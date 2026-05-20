@@ -29,3 +29,25 @@ def test_load_records_skips_blank_row_in_middle(write_health_csv):
     count = shealth.calculate_bmi(str(path))
     assert count == 2
     assert shealth.weights == [70.0, 80.0]
+
+
+def test_header_only_csv_returns_zero(write_health_csv) -> None:
+    """헤더만 → count 0, ratios empty (TC #37)."""
+    path = write_health_csv([])
+    shealth = SHealth()
+    count = shealth.calculate_bmi(str(path))
+    assert count == 0
+    assert shealth.get_bmi_ratio(20, SHealth.UNDERWEIGHT) == 0.0
+
+
+def test_calculate_bmi_returns_row_count(write_health_csv) -> None:
+    """N data rows → return N (TC #43)."""
+    path = write_health_csv(
+        [
+            ("1", 25, 70.0, 170.0),
+            ("2", 35, 80.0, 175.0),
+            ("3", 45, 90.0, 180.0),
+        ]
+    )
+    shealth = SHealth()
+    assert shealth.calculate_bmi(str(path)) == 3

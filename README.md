@@ -35,8 +35,8 @@
 
 | 항목 | 결과 |
 |------|------|
-| pytest | **26건** (unittest 3건 + pytest 23건) |
-| 커버리지 | **92%** (`shealth.py` 98%, `models.py` 100%) — `--cov-fail-under=90` 충족 |
+| pytest | **45건** (unittest 3건 + pytest 42건) |
+| 커버리지 | **99%** (`shealth.py` 100%, `models.py` 100%, `shealth_bmi.py` 96%) — `--cov-fail-under=90` 충족 |
 | 주요 TC | BMI 경계(18.5/23/25), weight=0 보정, 빈 행 스킵, ERROR 로깅, FakeClassifier 주입 |
 
 ### 아직 미구현 (Activities 4 예정)
@@ -137,14 +137,19 @@ src/
   test/python/
     conftest.py             - tmp_path CSV fixture
     test_shealth_bmi.py     - unittest 스모크 (3건)
+    test_bmi_formula.py     - BMI 공식 TC (#1~2)
+    test_bmi_ratio_sum.py   - 나이대 비율 합·빈 대 TC (#27~28)
     test_classify_bmi_*.py  - BMI 경계·단위 분류 TC
-    test_impute_weight.py   - weight=0 보정 TC
-    test_load_records.py    - 빈 행 continue TC
+    test_impute_weight.py   - weight=0 보정 TC (#10~13)
+    test_load_records.py    - 빈 행·헤더만·건수 TC
+    test_cli_main.py        - CLI main() 통합 TC
     test_age_band_policy.py - in_age_band / AGE_BANDS TC
     test_bmi_classifier.py  - Protocol·FakeClassifier TC
     test_cli_logging.py     - logging·리포트 포맷 TC
 task_refactoring/           - Phase 01~08 리팩토링 프롬프트
+task_testplan/              - Activities 3 단위 테스트 Phase 01~09 프롬프트
 doc/
+  test_plan.md              - Activities 3 테스트 계획서
   requirements_analysis.md  - 요구사항·QA 분석 (TC 45건)
   code_quality_report.md    - SOLID·코드 스멜 분석
 .cursorrules                - Cursor AI 프로젝트 규칙
@@ -236,16 +241,19 @@ report/                     - Activities 단계별 보고서
 
 ### 3. 단위 테스트 · pytest (Activities 3)
 
-- [x] pytest 확장 (`conftest.py`, `tmp_path`, 23건) — unittest 3건 병행 유지
+- [x] pytest 확장 (`conftest.py`, `tmp_path`, 42건) — unittest 3건 병행 유지
 - [x] BMI 경계값 TC (18.5 / 18.500001 / 23.0 / 25.0) — TC #15~21 일부
 - [x] `weight=0` 나이대 평균 보정 TC — TC #10
 - [x] 분류 단위·통합 TC — `classify_bmi`, `get_bmi_ratio` 경계
 - [x] 예외 TC 일부 — 파일 없음(ERROR 로그), 빈 행 continue — TC #36~37, #42
-- [x] **라인 커버리지 90% 이상** (현재 **92%**, 2026-05-20 기준)
-- [ ] BMI 표준 계산·cm→m 전용 TC — TC #1~2
+- [x] **라인 커버리지 90% 이상** (현재 **99%**, 2026-05-20 기준)
+- [x] BMI 표준 계산·cm→m 전용 TC — TC #1~2 (`test_bmi_formula.py`)
+- [x] 나이대 4종 합 100%·빈 나이대 TC — TC #27~28 (`test_bmi_ratio_sum.py`)
+- [x] weight 보정 parametrize·보정 불가 — TC #11~13 (`test_impute_weight.py`)
+- [x] 헤더만·건수 반환·`main()` CLI TC — TC #37, #43, `test_cli_main.py`
 - [ ] height 보정·전체 비율·정상 ID TC — Activities 4 연동
 - [ ] 잘못된 행 스킵 TC — TC #38~39
-- [ ] `prompt/03.단위테스트.md`, `report/03.report.md` 작성
+- [x] `prompt/05.test_case.md`, `report/05.test_case.md` 작성
 
 ### 4. 기능 개선 (Activities 4)
 
@@ -277,7 +285,7 @@ report/                     - Activities 단계별 보고서
 - [x] 분류 전략 주입 — `SHealth(classifier=SupportsBmiClassification)`
 - [x] `HealthRecord` + property + **type hint** (`shealth.py`, `shealth_bmi.py`)
 - [ ] Reader / Imputer / Statistics **별도 클래스** 분리 (추가 리팩토링)
-- [ ] `prompt/04.기능개선.md`, `report/04.report.md` 작성
+- [ ] `prompt/06.feature.md`, `report/06.feature.md` 작성
 
 ### 5. 회고 · 발표 (Activities 5)
 
@@ -285,7 +293,7 @@ report/                     - Activities 단계별 보고서
 - [ ] 코드 품질 Before & After
 - [ ] AI 활용 회고 (도움·한계)
 - [ ] TC 추가가 품질에 미친 영향·작성 팁
-- [ ] `prompt/05.회고.md`, `report/05.report.md` 작성
+- [ ] `prompt/07.final.md`, `report/07.final.md` 작성
 
 ### 6. 품질 게이트 (`.cursorrules` 연동)
 
@@ -305,7 +313,7 @@ report/                     - Activities 단계별 보고서
 - 하드코드 및 전역변수 제거 ✅ (`BmiCategory`, `AGE_BANDS`, 필드명 상수)
 - 함수 추출 ✅ (`calculate_bmi` 분해, `format_age_band_report`)
 - 반복/중복 제거 ✅ (`in_age_band`, `_records_in_band`, `HealthRecord`)
-3. UnitTest 작성 (1시간) — **부분 완료** (pytest 26건, 커버리지 92%)
+3. UnitTest 작성 (1시간) — **완료** (pytest 45건, 커버리지 99%, [`doc/test_plan.md`](doc/test_plan.md) · [`report/05.test_case.md`](report/05.test_case.md))
 - BMI 계산·경계 로직 TC ✅
 - Age 평균치 보정 로직 TC ✅
 - 정상/저체중/과체중/비만 분류 TC ✅
