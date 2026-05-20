@@ -6,7 +6,46 @@
 - 수집 데이터는 ID, 나이, 몸무게(kg), 키(cm)이며, BMI는 체중(kg) / 키(m)제곱 으로 계산합니다.
 - BMI 기준으로 18.5이하 저체중, 18.5초과 23미만 정상체중, 23이상 25미만 과체중, 25이상 비만으로 판단합니다.
 ![BMI](./bmi.png)
-- 제공된 코드에는 다양한 코드 품질 문제가 있습니다. 
+- 제공된 코드에는 다양한 코드 품질 문제가 있었으며, **Phase 01~08 리팩토링**으로 구조·품질을 개선했습니다.
+
+
+## 리팩토링 개선 현황 (Phase 01~08)
+
+> 상세 프롬프트: [`task_refactoring/00.index.md`](task_refactoring/00.index.md)
+
+### 구조·설계 (P1~P3)
+
+| 구분 | 개선 내용 |
+|------|-----------|
+| **P1 SRP** | `calculate_bmi` → `_reset_state` / `_load_records` / `_impute_weights` / `_compute_bmis` / `_aggregate_ratios` 5단계 오케스트레이션 |
+| **P2 상수·파서** | `BmiThresholds`, `BmiCategory` IntEnum, `csv.DictReader` + 필드명 상수, `utf-8`, 빈 행 `continue` |
+| **P2 버그 수정** | BMI **25.0** 비만 분류 누락 수정 (`> 25` → `>= 25`), `classify_bmi()` / `WhoAsiaPacificClassifier` 단일화 |
+| **P3 데이터 모델** | `@dataclass HealthRecord` (`models.py`), `AGE_BANDS` + `in_age_band()`, `_records_in_band()` |
+| **P3 캡슐화** | `ages` / `weights` / `heights` / `bmis` → property (읽기 전용 복사) |
+
+### CLI·확장성 (P4~P5)
+
+| 구분 | 개선 내용 |
+|------|-----------|
+| **P4 CLI** | `format_age_band_report()`, `argparse` + `Path`, `BmiCategory` 사용, `main() -> None` |
+| **P4 로깅** | 도메인 `print` 제거 → `logging.error` (CLI에서 `basicConfig`) |
+| **P5 Protocol** | `SupportsBmiClassification`, `WhoAsiaPacificClassifier` 주입 (`SHealth(classifier=...)`) |
+
+### 품질·테스트
+
+| 항목 | 결과 |
+|------|------|
+| pytest | **26건** (unittest 3건 + pytest 23건) |
+| 커버리지 | **92%** (`shealth.py` 98%, `models.py` 100%) — `--cov-fail-under=90` 충족 |
+| 주요 TC | BMI 경계(18.5/23/25), weight=0 보정, 빈 행 스킵, ERROR 로깅, FakeClassifier 주입 |
+
+### 아직 미구현 (Activities 4 예정)
+
+- `height=0` 나이대 평균 키 보정 (`impute_heights`)
+- 전체 사용자 BMI 비율 API (`get_overall_bmi_distribution`)
+- 정상 범위 사용자 ID 목록 (`get_normal_weight_user_ids`)
+- CSV 잘못된 행 방어적 스킵 + WARNING 로그
+- `SupportsRecordReader` Protocol (선택)
 
 
 ## data sample
@@ -42,14 +81,37 @@ pip install -r requirements-dev.txt
 ```
 
 ### 실행
+
+프로젝트 **루트**에서 실행 (권장 — `shealth.dat`가 루트에 있음):
+
+```bash
+# 기본 데이터 파일 (shealth.dat)
+py -3 src/main/python/shealth_bmi.py
+
+# 사용자 지정 CSV
+py -3 src/main/python/shealth_bmi.py path/to/custom.dat
+```
+
+`src/main/python`에서 실행할 경우 데이터 파일 경로를 인자로 넘기세요:
+
 ```bash
 cd src/main/python
-python shealth_bmi.py
+python shealth_bmi.py ../../shealth.dat
+```
+
+출력 예 (나이대별 비율, 소수 6자리):
+
+```
+20 - underweight = 3.511053, normal = 23.797139, overweight = 11.833550, obesity = 60.858257
+...
 ```
 
 ### 테스트 실행
+
+프로젝트 루트에서:
+
 ```bash
-python -m pytest src/test/python -v
+py -3 -m pytest src/test/python -v
 ```
 
 ### 커버리지 확인 (라인 커버리지 90% 이상)
@@ -65,20 +127,29 @@ deactivate
 
 ## 프로젝트 구조
 ```
-requirements-dev.txt   # pytest, pytest-cov (개발·테스트용)
-shealth.dat
+requirements-dev.txt      # pytest, pytest-cov (개발·테스트용)
+shealth.dat                 # 샘플 입력 데이터 (프로젝트 루트)
 src/
   main/python/
-    shealth.py           - SHealth 클래스 (BMI 계산 및 통계 로직 구현)
-    shealth_bmi.py       - main 함수 (프로그램 진입점)
+    models.py               - HealthRecord dataclass
+    shealth.py              - SHealth, BmiCategory, 분류·나이대 정책
+    shealth_bmi.py          - CLI 진입점 (argparse, 리포트 출력)
   test/python/
-    test_shealth_bmi.py  - unittest 기반 단위 테스트
+    conftest.py             - tmp_path CSV fixture
+    test_shealth_bmi.py     - unittest 스모크 (3건)
+    test_classify_bmi_*.py  - BMI 경계·단위 분류 TC
+    test_impute_weight.py   - weight=0 보정 TC
+    test_load_records.py    - 빈 행 continue TC
+    test_age_band_policy.py - in_age_band / AGE_BANDS TC
+    test_bmi_classifier.py  - Protocol·FakeClassifier TC
+    test_cli_logging.py     - logging·리포트 포맷 TC
+task_refactoring/           - Phase 01~08 리팩토링 프롬프트
 doc/
-  requirements_analysis.md  - 요구사항·QA 분석 문서
-  code_quality_report.md      - SOLID·코드 스멜 분석 보고서
-.cursorrules               - Cursor AI 프로젝트 규칙
-prompt/                    - 단계별 프롬프트 등록
-report/                    - 단계별 작업 보고서
+  requirements_analysis.md  - 요구사항·QA 분석 (TC 45건)
+  code_quality_report.md    - SOLID·코드 스멜 분석
+.cursorrules                - Cursor AI 프로젝트 규칙
+prompt/                     - Activities 단계별 프롬프트
+report/                     - Activities 단계별 보고서
 ```
 
 > 상세 요구사항·테스트 시나리오(45건)는 [`doc/requirements_analysis.md`](doc/requirements_analysis.md), 코드 품질 분석은 [`doc/code_quality_report.md`](doc/code_quality_report.md) 참고.
@@ -103,61 +174,77 @@ report/                    - 단계별 작업 보고서
 - [x] `shealth.py` / `shealth_bmi.py` 구조·BMI 로직 이해
 - [x] 코드 스멜 목록화 — Long Method, Magic Number, Duplicated Code, Primitive Obsession, 데이터 클로킹 등 ([`code_quality_report.md` §3](doc/code_quality_report.md))
 - [x] **SRP/OCP 위반** 정리 — `calculate_bmi` 책임 혼재, BMI·나이대·CSV 스키마 하드코딩 ([§2](doc/code_quality_report.md))
-- [x] **버그 확인:** BMI `25.0` 비만 분류 누락 (`> 25` → `>= 25`)
-- [x] **잠재 버그:** 빈 행 처리 `break` → `continue` 검토 필요
+- [x] **버그 수정:** BMI `25.0` 비만 분류 누락 (`> 25` → `>= 25`, Phase 03)
+- [x] **잠재 버그:** 빈 행 처리 `break` → `continue` **수정 완료** (Phase 04)
 - [x] Python 특화 이슈 정리 — 타입 힌트 부분 적용, `Enum`/`dataclass`/`Protocol` 미활용, `encoding` 미지정 ([§4](doc/code_quality_report.md))
 - [x] `prompt/02.code_smell.md`, `report/02.code_smell.md` 작성
 
 ### 2. 1차 리팩토링 (Activities 2)
 
+> **진행 상태 (Phase 01~08):** P1~P4·기타 **완료** · P5 선택 1건 제외 · `impute_heights`는 Activities 4로 이관
+
 #### P1 — `calculate_bmi` 분해 (SRP, Long Method)
 
-- [ ] `load_records` — CSV 읽기·상태 초기화 분리
-- [ ] `impute_weights` / `impute_heights` — 결측 보정 분리
-- [ ] `compute_bmis` — BMI 산출 분리
-- [ ] `aggregate_ratios` — 나이대별 비율 집계 분리
+- [x] `_load_records` — CSV 읽기·레코드 적재 (`_load_records`)
+- [x] `_reset_state()` — `calculate_bmi` 호출 전 상태 초기화 분리
+- [x] `_impute_weights` — 체중(`weight=0`) 결측 보정 분리
+- [ ] `_impute_heights` — 키(`height=0`) 결측 보정 (**Activities 4**, 2차 범위)
+- [x] `_compute_bmis` — BMI 산출 분리
+- [x] `_aggregate_ratios` — 나이대별 비율 집계 분리
 
 #### P2 — 상수·파서·경계값 (OCP, Magic Number)
 
-- [ ] `BmiThresholds` / `AgeBandPolicy` 상수 모듈 (18.5, 23, 25, 20~70대)
-- [ ] BMI 분류 `> 25` → `>= 25` 수정 및 `classify_bmi()` 단일 함수화
-- [ ] `csv.DictReader` + 필드명 상수 (`id`, `age`, `weight`, `height`) — `row[1..3]` 제거
-- [ ] 빈 행 처리: `if not row: break` → `continue` (또는 strip 후 검증)
-- [ ] `BmiCategory` `IntEnum` — `100~400` 매직 넘버 제거
+- [x] `BmiThresholds` — 임계값 18.5 / 23 / 25 단일 정의
+- [x] `AGE_BANDS` + `in_age_band()` — AgeBandPolicy(20~70대, 10년 구간) 단일화
+- [x] BMI 분류 `> 25` → `>= 25` 수정 (`WhoAsiaPacificClassifier`)
+- [x] `classify_bmi()` 모듈 함수 + Classifier 위임 (thin wrapper)
+- [x] `csv.DictReader` + 필드명 상수 (`FIELD_ID` …) — `row[1..3]` 제거
+- [x] 빈 행: `break` → `continue` (`_is_blank_row`)
+- [x] `BmiCategory` `IntEnum` — 집계·CLI에서 `100~400` 리터럴 제거
+- [x] `open(..., encoding="utf-8")` 명시
 
 #### P3 — 데이터 모델·중복 제거
 
-- [ ] `@dataclass HealthRecord` — 평행 리스트(`ages`, `weights` …) 대체
-- [ ] `AGE_BANDS` + `in_band(age, band)` — `range(20, 80, 10)` 3중 루프 통합
-- [ ] 공개 mutable 리스트 캡슐화 (property 또는 읽기 전용 복사본)
+- [x] `models.py` + `@dataclass HealthRecord` — 평행 리스트 대체
+- [x] `AGE_BANDS` + `in_age_band()` — impute·aggregate 공통 사용
+- [x] `_records_in_band()` — 나이대 필터 중복 제거
+- [x] `ages` / `weights` / `heights` / `bmis` property — 읽기 전용 복사본 (캡슐화)
 
 #### P4 — 진입점·에러 처리 (`shealth_bmi.py`)
 
-- [ ] `main`에서 `SHealth.UNDERWEIGHT` 등 상수 사용 (리터럴 `100,200,300,400` 제거)
-- [ ] `format_age_band_report()` 추출 — f-string 출력 포맷 분리
-- [ ] `"shealth.dat"` → `argparse` / `pathlib.Path` 기본값
-- [ ] `FileNotFoundError`: `print` → `logging` (도메인 계층 `print` 금지)
-- [ ] `main() -> None` 타입 힌트·모듈 docstring
+- [x] `main`·리포트에서 `BmiCategory` 사용 (`100,200,300,400` 제거)
+- [x] `format_age_band_report()` — 출력 포맷·소수 6자리 분리
+- [x] `parse_args()` — `argparse` + `pathlib.Path` 기본값
+- [x] `AGE_BANDS` import — `range(20, 80, 10)` CLI 중복 제거
+- [x] `FileNotFoundError` → `logging.error` (도메인 `print` 제거)
+- [x] `main() -> None` · 모듈 docstring · `logging.basicConfig` (CLI)
 
-#### P5 — 확장성 (선택, 1~4차 이후)
+#### P5 — 확장성 (선택)
 
-- [ ] `typing.Protocol` — `SupportsBmiClassification`, `SupportsRecordReader` (`__subclasshook__` 검토)
-- [ ] 전략 패턴 — `BmiClassifier.classify(bmi)` 교체 가능 구조
-- [ ] `open(..., encoding="utf-8")` 명시
+- [x] `typing.Protocol` — `SupportsBmiClassification`
+- [x] `WhoAsiaPacificClassifier` — `SHealth(classifier=...)` 주입
+- [ ] `SupportsRecordReader` — **선택, 미구현** (YAGNI, Activities 2 범위 외)
 
-#### 기타
+#### 기타 (README §2 · code_quality_report §3)
 
-- [ ] 네이밍 개선 (`age_class_start` 등)
-- [ ] dead code·불필요 import 제거
+- [x] 네이밍 개선 (`age_band_start`, `band_size`, `valid_weight_count` 등)
+- [x] 함수 추출 — `calculate_bmi` God Method 분해, `format_age_band_report`, `classify_bmi`
+- [x] 하드코드 제거 — BMI 임계값·나이대·필드명·Enum 상수화
+- [x] 반복/중복 제거 — `in_age_band`, `_records_in_band`, `HealthRecord` 단일 저장소
+- [x] dead code·불필요 import 제거 (`typing.List`/`Dict` → builtin)
+- [x] `shealth.py` / `shealth_bmi.py` public·private API type hint (Phase 08)
 
 ### 3. 단위 테스트 · pytest (Activities 3)
 
-- [ ] `unittest` → **pytest** 스타일로 이전 (`conftest.py`, `tmp_path` fixture)
-- [ ] BMI 계산 TC (표준·cm→m 변환·경계값 18.5/23/25) — TC #1~9
-- [ ] `weight=0` 나이대 평균 보정 TC — TC #10~14
-- [ ] 저체중/정상/과체중/비만 분류 TC — TC #15~22
-- [ ] 예외 TC (파일 없음, 빈 파일, 잘못된 행) — TC #36~42
-- [ ] **라인 커버리지 90% 이상** (`--cov-fail-under=90`)
+- [x] pytest 확장 (`conftest.py`, `tmp_path`, 23건) — unittest 3건 병행 유지
+- [x] BMI 경계값 TC (18.5 / 18.500001 / 23.0 / 25.0) — TC #15~21 일부
+- [x] `weight=0` 나이대 평균 보정 TC — TC #10
+- [x] 분류 단위·통합 TC — `classify_bmi`, `get_bmi_ratio` 경계
+- [x] 예외 TC 일부 — 파일 없음(ERROR 로그), 빈 행 continue — TC #36~37, #42
+- [x] **라인 커버리지 90% 이상** (현재 **92%**, 2026-05-20 기준)
+- [ ] BMI 표준 계산·cm→m 전용 TC — TC #1~2
+- [ ] height 보정·전체 비율·정상 ID TC — Activities 4 연동
+- [ ] 잘못된 행 스킵 TC — TC #38~39
 - [ ] `prompt/03.단위테스트.md`, `report/03.report.md` 작성
 
 ### 4. 기능 개선 (Activities 4)
@@ -173,8 +260,8 @@ report/                    - 단계별 작업 보고서
 #### 4.2 BMI 계산 · 분류
 
 - [x] BMI = kg / m² (키 cm → m 변환)
-- [ ] `classify_bmi()` 단일 함수로 분류 통합
-- [ ] 경계값 정합: ≤18.5 / 18.5~23 / 23~25 / ≥25
+- [x] `classify_bmi()` / `WhoAsiaPacificClassifier` 단일 분류
+- [x] 경계값 정합: ≤18.5 / 18.5~23 / 23~25 / ≥25 (25.0 포함)
 
 #### 4.3 통계 · 조회 API
 
@@ -186,10 +273,10 @@ report/                    - 단계별 작업 보고서
 
 #### 4.4 설계 (SRP · OCP)
 
-- [ ] 책임 분리: **Reader** / **Imputer** / **Calculator** / **Classifier** / **Statistics** ([`code_quality_report.md` §2](doc/code_quality_report.md))
-- [ ] `SHealth`는 조합(composition)만 담당 — 분류·입력원은 주입 가능하게
-- [ ] `ages`, `heights`, `weights`, `bmis` 필드 **type hint** (`list[int]`, `list[float]` 등)
-- [ ] 모든 공개 함수·메서드 **type hint** 적용 (`shealth_bmi.main` 포함)
+- [x] 1차 책임 분리 — load / impute / compute / aggregate private 메서드
+- [x] 분류 전략 주입 — `SHealth(classifier=SupportsBmiClassification)`
+- [x] `HealthRecord` + property + **type hint** (`shealth.py`, `shealth_bmi.py`)
+- [ ] Reader / Imputer / Statistics **별도 클래스** 분리 (추가 리팩토링)
 - [ ] `prompt/04.기능개선.md`, `report/04.report.md` 작성
 
 ### 5. 회고 · 발표 (Activities 5)
@@ -202,26 +289,27 @@ report/                    - 단계별 작업 보고서
 
 ### 6. 품질 게이트 (`.cursorrules` 연동)
 
-- [ ] 신규·변경 기능마다 pytest TC 추가
-- [ ] `@pytest.mark.skip` 최소화
-- [ ] PEP 8 준수
-- [ ] 리팩토링 후 회귀 TC (`shealth.dat` 스냅샷) — TC #44
+- [x] 리팩토링 단계마다 pytest TC 추가 (Phase 01~08)
+- [x] `@pytest.mark.skip` 미사용
+- [x] PEP 8·type hint 정리 (Phase 08)
+- [x] `shealth.dat` 스모크·비율 0~100% 회귀 (`test_shealth_bmi`, `test_bmi_ratio_range`)
+- [ ] Golden 스냅샷 자동 비교 — TC #44 전용
 
 
 # 생성형AI를 활용한 Activities (6 시간)
 1. 문제 코드 분석 및 코드 스멜 찾기 (1시간)
 - 기본 코드구조, BMI 로직 이해 
 - 코드 스멜 찾기 
-2. 1차 리펙토링 (클린코드 관점, 아래 내용을 순차적으로 수행) (1시간) 
-- 네이밍 개선
-- 하드코드 및 전역변수 제거 
-- 함수 추출
-- 반복/중복 제거
-3. UnitTest 작성 (1시간)
-- BMI 계산 로직 TC
-- Age 평균치 보정 로직 TC
-- 정상/저체중/과체중/비만 분류 TC
-- 예외상황 TC
+2. 1차 리펙토링 (클린코드 관점, 아래 내용을 순차적으로 수행) (1시간) — **Phase 01~08 완료**
+- 네이밍 개선 ✅
+- 하드코드 및 전역변수 제거 ✅ (`BmiCategory`, `AGE_BANDS`, 필드명 상수)
+- 함수 추출 ✅ (`calculate_bmi` 분해, `format_age_band_report`)
+- 반복/중복 제거 ✅ (`in_age_band`, `_records_in_band`, `HealthRecord`)
+3. UnitTest 작성 (1시간) — **부분 완료** (pytest 26건, 커버리지 92%)
+- BMI 계산·경계 로직 TC ✅
+- Age 평균치 보정 로직 TC ✅
+- 정상/저체중/과체중/비만 분류 TC ✅
+- 예외상황 TC ✅ (파일 없음, 빈 행 — 일부)
 4. 기능 개선 (2시간)
 - SRP에 따른 책임 분리등 리팩토링 
 - 특정 연령대의 BMI 분포 비율 계산 기능 추가
