@@ -5,7 +5,7 @@ import unittest
 # src/main/python을 import 경로에 추가
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), "../../main/python"))
 
-from shealth import SHealth
+from shealth import AGE_BANDS, BmiCategory, SHealth
 
 
 class TestSHealthBMI(unittest.TestCase):
@@ -19,8 +19,8 @@ class TestSHealthBMI(unittest.TestCase):
         """BMI 비율이 0~100 사이인지 확인"""
         shealth = SHealth()
         shealth.calculate_bmi("shealth.dat")
-        for age in range(20, 80, 10):
-            for bmi_type in [100, 200, 300, 400]:
+        for age in AGE_BANDS:
+            for bmi_type in BmiCategory:
                 ratio = shealth.get_bmi_ratio(age, bmi_type)
                 self.assertGreaterEqual(ratio, 0.0)
                 self.assertLessEqual(ratio, 100.0)
